@@ -24,8 +24,6 @@ The experiments were run on a Linux-based system and the Python packages are all
 Depending on the hardware used, each of the three experiment notebooks may take between 2 to 8 hours to complete and approximately 10GB of disk space is required for data and additional files.
 
 ## Environment
-In the following, describe how to access our artifact and all related and necessary data and software components.
-Afterward, describe how to set up everything and how to verify that everything is set up correctly.
 
 ### Accessibility
 Our artifacts are hosted in GitHub.
