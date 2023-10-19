@@ -56,7 +56,7 @@ jupyter notebook --ip 0.0.0.0 --allow-root
 ### Main Results and Claims
 
 #### Main Result 1: Utility-Privacy Curves and Associated Values
-Our paper presents utility-privacy curves which can be seen in Figure 3 and an associated table showing utility-privacy values under various training-reference data privacy settings in Table 2. The experiments supporting this claim involve running each of the algorithms 10 times and averaging the resulting utility and privacy scores.
+Our paper presents utility-privacy curves and a table showing utility-privacy values under various training-reference data privacy settings. The experiments supporting this claim involve running each of the algorithms ten times and averaging the resulting utility and privacy scores.
 
 #### Main Result 2: Pearson Correlation Coefficients
 Our paper shows the Pearson correlation coefficients between theoretical and empirical relative privacy for each algorithm.
@@ -66,29 +66,59 @@ Our paper shows the per epoch training time for each algorithm.
 
 ### Experiments
 
-#### Experiment 1: Utility-Privacy Curves and Values
-How to Execute: Navigate to each Jupyter notebook: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the code under the sections titled "setup" and "run and save experiments". After each notebook finishes, execute all the code in evaluation.ipynb up to and including the section titled "Figure 3 Plot (including WERM-ES) / Table 2 Results".
+### Experiment 1: Utility-Privacy Curves and Values
+#### How to Execute: 
+Navigate to each Jupyter notebook: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the code under the sections titled "setup" and "run and save experiments". After each notebook finishes, execute all the code in evaluation.ipynb up to and including the section titled "Figure 3 Plot (including WERM-ES) / Table 2 Results".
 
-Expected Result: You should see a plot corresponding to Figure 3 in the paper, which also includes results for WERM-ES as shown only in Table 2 and the appendix of the paper.
+#### Expected Result: 
+You should see a plot corresponding to Figure 3 in the paper, which also includes results for WERM-ES as shown only in Table 2 and the appendix of the paper.
+
+<p align="center">
+  <img src="figs/experiments-plots.png" alt="Alt text for image" width="800">
+  <br>
+  <b>Utility-Privacy Curves (Figure 3)</b>.
+</p>
+
+<p align="center">
+  <img src="figs/experiments-table.png" alt="Alt text for image" width="800">
+  <br>
+  <b>Utility-Privacy Analysis (Table 2)</b>.
+</p>
 
 Time and Space: It may take between 2 to 8 hours to complete this experiment, consuming around 10GB of disk space.
 
 Supported Claims: This experiment supports Main Result 1.
 
-#### Experiment 2: Pearson Correlation Coefficients
-How to Execute: After all experiments are run and saved, go back to evaluation.ipynb and run the code under the section titled "Pearson Correlation Coefficients".
+### Experiment 2: Pearson Correlation Coefficients
+#### How to Execute: 
+After all experiments are run and saved, go back to evaluation.ipynb and run the code under the section titled "Pearson Correlation Coefficients".
 
-Expected Result: You will get values corresponding to Table 6 in the paper's appendix.
+#### Expected Result: 
+You will get values corresponding to Table 6 in the paper's appendix.
+
+<p align="center">
+  <img src="figs/experiments-pcc.png" alt="Alt text for image" width="400">
+  <br>
+  <b>Pearson Correlation Coefficients (Table 6)</b>.
+</p>
 
 Time and Space: This will take a few minutes and consume negligible additional disk space.
 
 Supported Claims: This experiment supports Main Result 2.
 
-#### Experiment 3: Per Epoch Training Time
+### Experiment 3: Per Epoch Training Time
 
-How to Execute: Navigate back to each of the Jupyter notebooks: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the setup code and then execute the code under the section titled "evaluate per epoch training time".
+#### How to Execute: 
+Navigate back to each of the Jupyter notebooks: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the setup code and then execute the code under the section titled "evaluate per epoch training time".
 
-Expected Result: The per-epoch training time will be printed as output and should corroborate the paper's claim regarding the relative speed of WERM compared to the other algorithms.
+#### Expected Result: 
+The per-epoch training time will be printed as output and should corroborate the paper's claim regarding the relative speed of WERM compared to the other algorithms.
+
+<p align="center">
+  <img src="figs/experiments-time.png" alt="Alt text for image" width="400">
+  <br>
+  <b>Per-Epoch Training Time (Table 4)</b>.
+</p>
 
 Time and Space: This experiment will take around 30 minutes to an hour and consume negligible additional disk space.
 
