@@ -66,12 +66,22 @@ Our paper shows the per epoch training time for each algorithm.
 
 ### Experiments
 
-### Experiment 1: Utility-Privacy Curves and Values
+### Experiment 1: Utility-Privacy Curves and Values (This experiment needs to be run before the others)
 #### How to Execute: 
-Navigate to each Jupyter notebook: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the code under the sections titled "setup" and "run and save experiments". After each notebook finishes, execute all the code in evaluation.ipynb up to and including the section titled "Figure 3 Plot (including WERM-ES) / Table 2 Results".
+Run the following commands to run and save experiment results: 
+```bash
+python run_experiments.py --algorithm werm --gpu {your_gpu_number}
+python run_experiments.py --algorithm mmd --gpu {your_gpu_number}
+python run_experiments.py --algorithm adv_reg --gpu {your_gpu_number}
+```
+
+Afterwards, run the following command to save a figure called utility-privacy-analysis.png:
+```bash
+python analyze_experiments.py --evaluation utility-privacy --gpu {your_gpu_number}
+```
 
 #### Expected Result: 
-You should see a plot corresponding to Figure 3 in the paper, which also includes results for WERM-ES as shown only in Table 2 and the appendix of the paper.
+The saved file will be a plot that corresponds to Figure 3 in the paper, which also includes results for WERM-ES as shown only in Table 2 and the appendix of the paper.
 
 <p align="center">
   <img src="figs/experiments-plots.png" alt="Alt text for image" width="800">
@@ -85,13 +95,16 @@ You should see a plot corresponding to Figure 3 in the paper, which also include
   <b>Utility-Privacy Analysis (Table 2)</b>.
 </p>
 
-Time and Space: It may take between 2 to 8 hours to complete this experiment, consuming around 10GB of disk space.
+Time and Space: It will take around 10-15 hours to complete this experiment, consuming around 10GB of disk space.
 
 Supported Claims: This experiment supports Main Result 1.
 
 ### Experiment 2: Pearson Correlation Coefficients
 #### How to Execute: 
-After all experiments are run and saved, go back to evaluation.ipynb and run the code under the section titled "Pearson Correlation Coefficients".
+Run the following command:
+```bash
+python analyze_experiments.py --evaluation pcc --gpu {your_gpu_number}
+```
 
 #### Expected Result: 
 You will get values corresponding to Table 6 in the paper's appendix.
@@ -102,14 +115,17 @@ You will get values corresponding to Table 6 in the paper's appendix.
   <b>Pearson Correlation Coefficients (Table 6)</b>.
 </p>
 
-Time and Space: This will take a few minutes and consume negligible additional disk space.
+Time and Space: This will take a few seconds and consume negligible additional disk space.
 
 Supported Claims: This experiment supports Main Result 2.
 
 ### Experiment 3: Per Epoch Training Time
 
 #### How to Execute: 
-Navigate back to each of the Jupyter notebooks: werm.ipynb, mmd.ipynb, and adv_reg.ipynb. Run the setup code and then execute the code under the section titled "evaluate per epoch training time".
+Run the following command:
+```bash
+python analyze_experiments.py --evaluation runtime --gpu {your_gpu_number}
+```
 
 #### Expected Result: 
 The per-epoch training time will be printed as output and should corroborate the paper's claim regarding the relative speed of WERM compared to the other algorithms.
