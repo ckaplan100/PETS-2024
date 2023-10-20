@@ -57,7 +57,7 @@ def prepare_data_for_attack_evaluation(train_classifier_data, train_classifier_l
     return known_train_data, unknown_train_data, known_test_data, unknown_test_data
 
 
-def evaluation_metrics(net, train_data, train_labels, test_data, test_labels, data_is_numpy=True):
+def evaluation_metrics(net, train_data, train_labels, test_data, test_labels, data_is_numpy=True, device="cuda"):
     if data_is_numpy:
         num_classes = int(np.max(train_labels) + 1)
 #         train_data_tensor = torch.from_numpy(train_data).type(torch.FloatTensor).cuda()
@@ -83,7 +83,7 @@ def evaluation_metrics(net, train_data, train_labels, test_data, test_labels, da
     
     known_train_performance, known_test_performance, unknown_train_performance, unknown_test_performance = \
         prepare_model_performance(net, known_train_data, known_test_data,
-                                  net, unknown_train_data, unknown_test_data)
+                                  net, unknown_train_data, unknown_test_data, device=device)
     
     MIA = black_box_benchmarks(known_train_performance,
                                known_test_performance,

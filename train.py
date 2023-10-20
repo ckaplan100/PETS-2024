@@ -25,8 +25,7 @@ from torchvision.models import resnet18, resnet50
 from models import *
 from train_utils import *
 
-
-def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, use_cuda, num_batchs=999999, 
+def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, device, num_batchs=999999, 
           add_grad_noise=False, grad_noise_scale=5, loss_weights=None, verbose=False, mmd_weight=None, mmd_scale=1,
           ref_data=None, ref_labels=None, start_mmd_epoch=2, unique_labels=False, mmd_ref_term=False):
     model.train()
@@ -50,9 +49,7 @@ def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, us
 
         data_time.update(time.time() - end)
 
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
+        inputs, targets = inputs.to(device), targets.to(device)
 
         # compute output
         outputs = model(inputs)
@@ -63,7 +60,7 @@ def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, us
             loss = torch.mean(criterion(outputs, targets))
             
         if mmd_weight is not None and epoch > start_mmd_epoch:
-            inputs_ref = ref_data[ind*batch_size:(ind+1)*batch_size].cuda()
+            inputs_ref = ref_data[ind*batch_size:(ind+1)*batch_size].to(device)
             targets_ref = ref_labels[ind*batch_size:(ind+1)*batch_size]
 
             if unique_labels:
@@ -86,7 +83,7 @@ def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, us
                         mmd_vals_per_label[label_idx] = label_cross_term + label_train_term + label_ref_term
                     else:
                         mmd_vals_per_label[label_idx] = label_cross_term + label_train_term
-                    mmd_val = torch.mean(mmd_vals_per_label).cuda()
+                    mmd_val = torch.mean(mmd_vals_per_label).to(device)
 #                 print(f"Skipped label pct: {skipped_labels / len(unique_train_labels)}")
             else:    
                 # calculate mmd value all together for batch
@@ -122,7 +119,7 @@ def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, us
             scale = 1 / grad_noise_scale
             for i in range(len(model.features)): 
                 try:
-                    grad_noise = draw_laplace_noise(model.features[i].weight.shape).cuda()
+                    grad_noise = draw_laplace_noise(model.features[i].weight.shape).to(device)
                     grad_noise *= scale
                     model.features[i].weight.grad += grad_noise
                 except AttributeError:
@@ -149,7 +146,7 @@ def train(train_data, labels, model, criterion, optimizer, batch_size, epoch, us
     return losses.avg, top1.avg
 
 
-def test(test_data, labels, model, criterion, batch_size, epoch, use_cuda, verbose=False):
+def test(test_data, labels, model, criterion, batch_size, epoch, device, verbose=False):
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -171,9 +168,7 @@ def test(test_data, labels, model, criterion, batch_size, epoch, use_cuda, verbo
         
         data_time.update(time.time() - end)
 
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = torch.autograd.Variable(inputs, volatile=True), torch.autograd.Variable(targets)
+        inputs, targets = inputs.to(device), targets.to(device)
 
         # compute output
         outputs = model(inputs)
@@ -206,7 +201,7 @@ def test(test_data, labels, model, criterion, batch_size, epoch, use_cuda, verbo
 
 
 def train_privately(training_style, train_data, labels, model, inference_model, criterion, optimizer, batch_size, 
-                   epoch, use_cuda, num_batchs=10000,skip_batch=0,alpha=0.5, 
+                   epoch, device, num_batchs=10000,skip_batch=0,alpha=0.5, 
                    attack_data=None, attack_labels=None,
                    i=None, squared_loss=False, log_loss=False, non_member_loss_term=False, verbose=False
                   ):
@@ -231,15 +226,17 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
 
             data_time.update(time.time() - end)
 
-            if use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
-            inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
+            inputs, targets = inputs.to(device), targets.to(device)
 
             # compute output
             outputs = model(inputs)
 
-            one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-            target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            if device == "cuda":
+                one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            else:
+                one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.LongTensor).view([-1,1]).data,1)
             infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
             inference_output = inference_model(outputs, infer_input_one_hot)
@@ -250,10 +247,16 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
             if non_member_loss_term:
                 inputs_att = attack_data[ind*batch_size:(ind+1)*batch_size]
                 targets_att = attack_labels[ind*batch_size:(ind+1)*batch_size]
-                inputs_att, targets_att = inputs_att.cuda(), targets_att.cuda()
+                inputs_att, targets_att = inputs_att.to(device), targets_att.to(device)
                 outputs_att = model(inputs_att)
-                one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).cuda().type(torch.cuda.FloatTensor)
-                target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+
+                if device == "cuda":
+                    one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).to(device).type(torch.cuda.FloatTensor)
+                    target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+                else:
+                    one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).to(device).type(torch.FloatTensor)
+                    target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.LongTensor).view([-1,1]).data,1)      
+                
                 infer_input_one_hot_att = torch.autograd.Variable(target_one_hot_att)
                 inference_output_att = inference_model(outputs_att, infer_input_one_hot_att)
                 if squared_loss:
@@ -305,15 +308,18 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
         
         data_time.update(time.time() - end)
 
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
+        inputs, targets = inputs.to(device), targets.to(device)
 
         # compute output
         outputs = model(inputs)
 
-        one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-        target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        if device == "cuda":
+            one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        else:
+            one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.LongTensor).view([-1,1]).data,1)
+        
         infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
         inference_output = inference_model(outputs, infer_input_one_hot)
@@ -323,10 +329,16 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
         if non_member_loss_term:
             inputs_att = attack_data[i*batch_size:(i+1)*batch_size]
             targets_att = attack_labels[i*batch_size:(i+1)*batch_size]
-            inputs_att, targets_att = inputs_att.cuda(), targets_att.cuda()
+            inputs_att, targets_att = inputs_att.to(device), targets_att.to(device)
             outputs_att = model(inputs_att)
-            one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).cuda().type(torch.cuda.FloatTensor)
-            target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+
+            if device == "cuda":
+                one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).to(device).type(torch.cuda.FloatTensor)
+                target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            else:
+                one_hot_att = torch.from_numpy((np.zeros((outputs_att.size()[0],outputs_att.size(1))))).to(device).type(torch.FloatTensor)
+                target_one_hot_att = one_hot_att.scatter_(1, targets_att.type(torch.LongTensor).view([-1,1]).data,1)    
+            
             infer_input_one_hot_att = torch.autograd.Variable(target_one_hot_att)
             inference_output_att = inference_model(outputs_att, infer_input_one_hot_att)
             if squared_loss:
@@ -394,14 +406,12 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
 
             data_time.update(time.time() - end)
 
-            if use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
-            inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
+            inputs, targets = inputs.to(device), targets.to(device)
 
             # compute output
             outputs = model(inputs)
 
-            one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
+            one_hot_tr = torch.from_numpy((np.zeros((outputs.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
             target_one_hot_tr = one_hot_tr.scatter_(1, targets.type(torch.cuda.LongTensor).view([-1,1]).data,1)
             infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
@@ -445,7 +455,7 @@ def train_privately(training_style, train_data, labels, model, inference_model, 
         
                 
 def train_attack(training_style, train_data, labels, attack_data, attack_label, model, attack_model, criterion, 
-                 attack_criterion, optimizer, attack_optimizer, batch_size, epoch, use_cuda,
+                 attack_criterion, optimizer, attack_optimizer, batch_size, epoch, device,
                  num_batchs=100000,skip_batch=0, i=None, verbose=False):
     # switch to train mode
     model.eval()
@@ -472,12 +482,8 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 
             data_time.update(time.time() - end)
 
-            if use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
-                inputs_attack , targets_attack = inputs_attack.cuda(), targets_attack.cuda()
-            inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
-            inputs_attack , targets_attack = torch.autograd.Variable(inputs_attack), torch.autograd.Variable(targets_attack)
-
+            inputs, targets = inputs.to(device), targets.to(device)
+            inputs_attack , targets_attack = inputs_attack.to(device), targets_attack.to(device)
 
             # compute output
             outputs = model(inputs)
@@ -488,16 +494,20 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 #             comb_inputs_h = torch.cat((h_layer,h_layer_non))
             comb_inputs = torch.cat((outputs,outputs_non))
 
-            if use_cuda:
+            if device == "cuda":
                 comb_targets= torch.cat((targets,targets_attack)).view([-1,1]).type(torch.cuda.FloatTensor)
             else:
                 comb_targets= torch.cat((targets,targets_attack)).view([-1,1]).type(torch.FloatTensor)
 
             attack_input = comb_inputs #torch.cat((comb_inputs,comb_targets),1)
 
-            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
-
+            if device == "cuda":
+                one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            else:
+                one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.LongTensor).view([-1,1]).data,1)
+            
             infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
     #         sf= nn.Softmax(dim=0)
@@ -512,12 +522,14 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
             att_labels [inputs.size()[0]:] =0.0
             is_member_labels = torch.from_numpy(att_labels).type(torch.FloatTensor)
 
-            if use_cuda:
-                is_member_labels = is_member_labels.cuda()
+            is_member_labels = is_member_labels.to(device)
 
             v_is_member_labels = torch.autograd.Variable(is_member_labels)
 
-            classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+            if device == "cuda":
+                classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+            else:
+                classifier_targets = comb_targets.clone().view([-1]).type(torch.LongTensor)        
 
             loss_attack = attack_criterion(attack_output, v_is_member_labels)
 
@@ -557,12 +569,8 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 
         data_time.update(time.time() - end)
 
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-            inputs_attack , targets_attack = inputs_attack.cuda(), targets_attack.cuda()
-        inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
-        inputs_attack , targets_attack = torch.autograd.Variable(inputs_attack), torch.autograd.Variable(targets_attack)
-
+        inputs, targets = inputs.to(device), targets.to(device)
+        inputs_attack , targets_attack = inputs_attack.to(device), targets_attack.to(device)
 
         # compute output
         outputs = model(inputs)
@@ -573,15 +581,19 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 #         comb_inputs_h = torch.cat((h_layer,h_layer_non))
         comb_inputs = torch.cat((outputs,outputs_non))
 
-        if use_cuda:
+        if device == "cuda":
             comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.cuda.FloatTensor)
         else:
             comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.FloatTensor)
 
         attack_input = comb_inputs #torch.cat((comb_inputs,comb_targets),1)
 
-        one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-        target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        if device == "cuda":
+            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        else:
+            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.LongTensor).view([-1,1]).data,1)
 
         infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
@@ -597,12 +609,14 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
         att_labels[inputs.size()[0]:] = 0.0
         is_member_labels = torch.from_numpy(att_labels).type(torch.FloatTensor)
 
-        if use_cuda:
-            is_member_labels = is_member_labels.cuda()
+        is_member_labels = is_member_labels.to(device)
 
         v_is_member_labels = torch.autograd.Variable(is_member_labels)
 
-        classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+        if device == "cuda":
+            classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+        else:
+            classifier_targets = comb_targets.clone().view([-1]).type(torch.LongTensor)
 
         loss_attack = attack_criterion(attack_output, v_is_member_labels)
 
@@ -647,11 +661,8 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 
             data_time.update(time.time() - end)
 
-            if use_cuda:
-                inputs, targets = inputs.cuda(), targets.cuda()
-                inputs_attack , targets_attack = inputs_attack.cuda(), targets_attack.cuda()
-            inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
-            inputs_attack , targets_attack = torch.autograd.Variable(inputs_attack), torch.autograd.Variable(targets_attack)
+            inputs, targets = inputs.to(device), targets.to(device)
+            inputs_attack , targets_attack = inputs_attack.to(device), targets_attack.to(device)
 
             # compute output
             outputs = model(inputs)
@@ -662,15 +673,19 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 #             comb_inputs_h = torch.cat((h_layer,h_layer_non))
             comb_inputs = torch.cat((outputs,outputs_non))
 
-            if use_cuda:
+            if device == "cuda":
                 comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.cuda.FloatTensor)
             else:
                 comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.FloatTensor)
 
             attack_input = comb_inputs #torch.cat((comb_inputs,comb_targets),1)
 
-            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            if device == "cuda":
+                one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+            else:
+                one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+                target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.LongTensor).view([-1,1]).data,1)
 
             infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
 
@@ -686,12 +701,14 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
             att_labels [inputs.size()[0]:] =0.0
             is_member_labels = torch.from_numpy(att_labels).type(torch.FloatTensor)
 
-            if use_cuda:
-                is_member_labels = is_member_labels.cuda()
+            is_member_labels = is_member_labels.to(device)
 
             v_is_member_labels = torch.autograd.Variable(is_member_labels)
 
-            classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+            if device == "cuda":
+                classifier_targets = comb_targets.clone().view([-1]).type(torch.cuda.LongTensor)
+            else:
+                classifier_targets = comb_targets.clone().view([-1]).type(torch.LongTensor)
 
             loss_attack = attack_criterion(attack_output, v_is_member_labels)
 
@@ -728,7 +745,7 @@ def train_attack(training_style, train_data, labels, attack_data, attack_label, 
 
 
 def test_attack(train_data, labels, attack_data, attack_label, model, attack_model, criterion, attack_criterion, optimizer, 
-                attack_optimizer, batch_size, epoch, use_cuda, verbose=False):
+                attack_optimizer, batch_size, epoch, device, verbose=False):
 
     model.eval()
     attack_model.eval()
@@ -753,11 +770,8 @@ def test_attack(train_data, labels, attack_data, attack_label, model, attack_mod
         
         data_time.update(time.time() - end)
 
-        if use_cuda:
-            inputs, targets = inputs.cuda(), targets.cuda()
-            inputs_attack , targets_attack = inputs_attack.cuda(), targets_attack.cuda()
-        inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)
-        inputs_attack , targets_attack = torch.autograd.Variable(inputs_attack), torch.autograd.Variable(targets_attack)
+        inputs, targets = inputs.to(device), targets.to(device)
+        inputs_attack , targets_attack = inputs_attack.to(device), targets_attack.to(device)
 
         # compute output
         outputs = model(inputs)
@@ -766,16 +780,20 @@ def test_attack(train_data, labels, attack_data, attack_label, model, attack_mod
 #         comb_inputs_h = torch.cat((h_layer,h_layer_non))
         comb_inputs = torch.cat((outputs,outputs_non))
         
-        if use_cuda:
+        if device == "cuda":
             comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.cuda.FloatTensor)
         else:
             comb_targets = torch.cat((targets,targets_attack)).view([-1,1]).type(torch.FloatTensor)
             
         attack_input = comb_inputs #torch.cat((comb_inputs,comb_targets),1)
+
         
-        
-        one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).cuda().type(torch.cuda.FloatTensor)
-        target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        if device == "cuda":
+            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.cuda.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.cuda.LongTensor).view([-1,1]).data,1)
+        else:
+            one_hot_tr = torch.from_numpy((np.zeros((attack_input.size()[0],outputs.size(1))))).to(device).type(torch.FloatTensor)
+            target_one_hot_tr = one_hot_tr.scatter_(1, torch.cat((targets,targets_attack)).type(torch.LongTensor).view([-1,1]).data,1)
         
         infer_input_one_hot = torch.autograd.Variable(target_one_hot_tr)
         
@@ -786,8 +804,7 @@ def test_attack(train_data, labels, attack_data, attack_label, model, attack_mod
         att_labels [:inputs.size()[0]] =1.0
         att_labels [inputs.size()[0]:] =0.0
         is_member_labels = torch.from_numpy(att_labels).type(torch.FloatTensor)
-        if use_cuda:
-            is_member_labels = is_member_labels.cuda()
+        is_member_labels = is_member_labels.to(device)
         
         v_is_member_labels = torch.autograd.Variable(is_member_labels)
         
